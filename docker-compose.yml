@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # Backend API service
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - DEBUG=True
+      - FRONTEND_URL=http://localhost:3000
+    volumes:
+      - ./backend:/app
+      - backend_uploads:/app/uploads
+      - backend_models:/app/models
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # Frontend service
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - API_BASE_URL=http://backend:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - app-network
+
+volumes:
+  backend_uploads:
+  backend_models:
+
+networks:
+  app-network:
+    driver: bridge

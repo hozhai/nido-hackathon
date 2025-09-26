@@ -1,0 +1,29 @@
+{
+  "name": "image-classifier-frontend",
+  "version": "1.0.0",
+  "description": "Nuxt.js frontend for image classification",
+  "main": "index.js",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@nuxt/ui": "^2.18.6",
+    "nuxt": "^3.13.0",
+    "vue": "latest"
+  },
+  "devDependencies": {
+    "@nuxt/devtools": "latest"
+  },
+  "keywords": [
+    "nuxt",
+    "vue",
+    "image-classification",
+    "machine-learning"
+  ],
+  "author": "",
+  "license": "ISC"
+}
