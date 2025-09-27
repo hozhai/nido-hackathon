@@ -58,7 +58,7 @@ async def predict_breast_cancer(image: UploadFile = File(...)):
     """
     try:
         # Validate file
-        if not allowed_file(image.filename):
+        if image.filename and not allowed_file(image.filename):
             raise HTTPException(status_code=400, detail="Invalid file type. Please upload PNG, JPG, JPEG, TIFF, or DICOM images.")
         
         # Save uploaded file

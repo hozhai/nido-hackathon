@@ -47,23 +47,26 @@ class EfficientMammographyNet(nn.Module):
     def __init__(self, num_classes=2, pretrained=True):
         super(EfficientMammographyNet, self).__init__()
         
-        # Use EfficientNet-B3 for better feature extraction
+        # Try EfficientNet-B3 first, fallback to ResNet50
+        self.backbone_type = None
+        feature_size = None
+        
         try:
             from torchvision.models import efficientnet_b3
             self.backbone = efficientnet_b3(pretrained=pretrained)
+            self.backbone_type = "efficientnet_b3"
             feature_size = 1536  # EfficientNet-B3 feature size
-        except ImportError:
+            # Remove the original classifier
+            self.backbone.classifier = nn.Identity()
+        except (ImportError, AttributeError):
             # Fallback to ResNet50 if EfficientNet not available
             logger.warning("EfficientNet not available, using ResNet50")
             self.backbone = models.resnet50(pretrained=pretrained)
+            self.backbone_type = "resnet50"
             feature_size = 2048
-        
-        # Remove the original classifier
-        if hasattr(self.backbone, 'classifier'):
-            self.backbone.classifier = nn.Identity()
-        elif hasattr(self.backbone, 'fc'):
+            # Remove the original classifier
             self.backbone.fc = nn.Identity()
-            
+        
         # Custom mammography-specific head
         self.classifier = nn.Sequential(
             nn.Dropout(0.3),
@@ -166,8 +169,11 @@ class ImprovedMammographyClassifier:
         # Training parameters optimized for imbalanced data
         self.learning_rate = 0.0001  # Lower LR for better convergence
         self.batch_size = 8  # Smaller batch for limited data
-        self.epochs = 25  # More epochs for better learning
-        self.early_stopping_patience = 7
+        self.epochs = 50  # Increased epochs for better learning with small dataset
+        self.early_stopping_patience = 15  # More patience for small datasets
+        
+        # Create model directory if it doesn't exist
+        os.makedirs(self.model_dir, exist_ok=True)
         
         # Setup transforms
         self.train_transform = AdvancedMammographyTransforms.get_training_transforms()
@@ -187,6 +193,10 @@ class ImprovedMammographyClassifier:
         """
         Train the model with all accuracy improvements
         """
+        # Ensure model is initialized
+        if self.model is None:
+            self._setup_model()
+
         logger.info("Starting improved mammography training...")
         
         # Calculate class weights for handling imbalance
@@ -194,9 +204,19 @@ class ImprovedMammographyClassifier:
         for _, labels in train_loader:
             train_labels.extend(labels.numpy())
         
-        class_weights = compute_class_weight('balanced', 
-                                           classes=np.unique(train_labels), 
-                                           y=train_labels)
+        # Handle case where there might be only one class in training data
+        unique_labels = np.unique(train_labels)
+        if len(unique_labels) < 2:
+            logger.warning("Only one class found in training data, using balanced weights")
+            class_weights = np.array([1.0, 1.0])
+        else:
+            class_weights = compute_class_weight('balanced', 
+                                               classes=unique_labels, 
+                                               y=train_labels)
+            # Ensure we have weights for both classes
+            if len(class_weights) == 1:
+                class_weights = np.array([1.0, class_weights[0]])
+        
         class_weights_tensor = torch.FloatTensor(class_weights).to(self.device)
         
         logger.info(f"Class weights - Benign: {class_weights[0]:.3f}, Malignant: {class_weights[1]:.3f}")
@@ -209,13 +229,16 @@ class ImprovedMammographyClassifier:
                                lr=self.learning_rate, 
                                weight_decay=0.01)
         
-        # Learning rate scheduler
+        # Learning rate scheduler with more patience
         scheduler = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, 
-                                    patience=3)
+                                    patience=5, min_lr=1e-7)
         
+        # Additional training parameters
         best_val_acc = 0.0
         best_val_sensitivity = 0.0
         epochs_without_improvement = 0
+        consecutive_lr_reductions = 0
+        max_lr_reductions = 3  # Stop after 3 LR reductions
         
         for epoch in range(self.epochs):
             # Training phase
@@ -298,13 +321,27 @@ class ImprovedMammographyClassifier:
                 all_labels.extend(labels.cpu().numpy())
         
         # Calculate detailed metrics
-        tn, fp, fn, tp = confusion_matrix(all_labels, all_predictions).ravel()
+        # Handle case where confusion matrix might not have all classes
+        cm = confusion_matrix(all_labels, all_predictions, labels=[0, 1])
         
-        accuracy = (tp + tn) / (tp + tn + fp + fn) * 100
+        # Ensure we have a 2x2 matrix
+        if cm.shape == (2, 2):
+            tn, fp, fn, tp = cm.ravel()
+        else:
+            # Handle edge cases where only one class is present
+            tn = fp = fn = tp = 0
+            unique_labels = np.unique(all_labels)
+            if len(unique_labels) == 1:
+                if unique_labels[0] == 0:  # Only benign
+                    tn = len(all_labels)
+                else:  # Only malignant
+                    tp = len(all_labels)
+        
+        accuracy = (tp + tn) / len(all_labels) * 100 if len(all_labels) > 0 else 0
         sensitivity = tp / (tp + fn) * 100 if (tp + fn) > 0 else 0  # True positive rate (malignant detection)
         specificity = tn / (tn + fp) * 100 if (tn + fp) > 0 else 0  # True negative rate (benign detection)
         
-        val_loss_avg = val_loss / len(val_loader)
+        val_loss_avg = val_loss / len(val_loader) if len(val_loader) > 0 else 0
         
         return accuracy, sensitivity, specificity, val_loss_avg
     
@@ -315,14 +352,20 @@ class ImprovedMammographyClassifier:
         if not self.is_trained or self.model is None:
             raise ValueError("Model must be trained before making predictions")
         
+        # Check if image file exists
+        if not os.path.exists(image_path):
+            raise FileNotFoundError(f"Image file not found: {image_path}")
+        
         self.model.eval()
         
         # Load and preprocess image
-        image = Image.open(image_path).convert('RGB')
+        try:
+            image = Image.open(image_path).convert('RGB')
+        except Exception as e:
+            raise ValueError(f"Unable to load image: {e}")
         
         # Test-time augmentation for more robust predictions
         predictions = []
-        confidences = []
         
         # Original prediction
         input_tensor = self.val_transform(image).unsqueeze(0).to(self.device)
@@ -331,13 +374,16 @@ class ImprovedMammographyClassifier:
             probs = F.softmax(outputs, dim=1)
             predictions.append(probs.cpu().numpy()[0])
         
-        # Horizontal flip prediction
-        flipped_image = image.transpose(Image.FLIP_LEFT_RIGHT)
-        input_tensor = self.val_transform(flipped_image).unsqueeze(0).to(self.device)
-        with torch.no_grad():
-            outputs = self.model(input_tensor)
-            probs = F.softmax(outputs, dim=1)
-            predictions.append(probs.cpu().numpy()[0])
+        # Horizontal flip prediction for additional robustness
+        try:
+            flipped_image = image.transpose(Image.FLIP_LEFT_RIGHT)
+            input_tensor = self.val_transform(flipped_image).unsqueeze(0).to(self.device)
+            with torch.no_grad():
+                outputs = self.model(input_tensor)
+                probs = F.softmax(outputs, dim=1)
+                predictions.append(probs.cpu().numpy()[0])
+        except Exception as e:
+            logger.warning(f"Could not perform horizontal flip augmentation: {e}")
         
         # Average predictions (ensemble)
         avg_probs = np.mean(predictions, axis=0)
@@ -357,8 +403,8 @@ class ImprovedMammographyClassifier:
             "risk_level": risk_level,
             "recommendation": self._get_medical_recommendation(avg_probs, predicted_class),
             "technical_details": {
-                "model_type": "Enhanced EfficientNet/ResNet50",
-                "test_time_augmentation": True,
+                "model_type": f"Enhanced {getattr(self.model, 'backbone_type', 'unknown')}",
+                "test_time_augmentation": len(predictions) > 1,
                 "ensemble_predictions": len(predictions)
             }
         }
@@ -398,7 +444,7 @@ class ImprovedMammographyClassifier:
         torch.save({
             'model_state_dict': self.model.state_dict(),
             'model_type': 'enhanced_mammography',
-            'architecture': 'EfficientNet/ResNet50',
+            'architecture': getattr(self.model, 'backbone_type', 'unknown'),
             'classes': self.classes,
             'is_trained': self.is_trained,
             'training_parameters': {
@@ -410,3 +456,24 @@ class ImprovedMammographyClassifier:
         }, model_path)
         
         logger.info(f"Enhanced model saved to {model_path}")
+    
+    def load_model(self, model_path: Optional[str] = None):
+        """Load a saved model"""
+        if model_path is None:
+            model_path = os.path.join(self.model_dir, "enhanced_mammography_classifier.pth")
+        
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model file not found: {model_path}")
+        
+        checkpoint = torch.load(model_path, map_location=self.device)
+        
+        # Initialize model if not already done
+        if self.model is None:
+            self._setup_model()
+        
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.is_trained = checkpoint.get('is_trained', True)
+        self.classes = checkpoint.get('classes', self.classes)
+        
+        logger.info(f"Model loaded from {model_path}")
+        return True

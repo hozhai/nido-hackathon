@@ -5,12 +5,8 @@ import torchvision.transforms as transforms
 import torchvision.models as models
 import numpy as np
 from PIL import Image
-import requests
-import zipfile
-import gdown
-from typing import Dict, List, Tuple
+from typing import Dict
 import logging
-import joblib
 from datetime import datetime
 
 # Configure logging
