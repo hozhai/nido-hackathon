@@ -40,6 +40,9 @@ ENV/
 uploads/
 models/
 
+# Local datasets (do not commit large data)
+data/
+
 # Logs
 *.log
 logs/

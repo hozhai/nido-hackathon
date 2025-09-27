@@ -21,6 +21,10 @@ requests>=2.31.0
 gdown>=4.7.1
 requests>=2.31.0
 
+# DICOM handling (for RSNA/VinDr/INbreast/CMMD)
+pydicom>=2.4.0
+pylibjpeg-libjpeg>=1.4.0
+
 # File handling
 python-multipart==0.0.20
 
