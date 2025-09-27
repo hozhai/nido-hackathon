@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
-app = FastAPI(title="Breast Cancer Detection API", version="1.0.0", description="AI-powered breast cancer tissue analysis")
+app = FastAPI(title="Breast Cancer Mammography Detection API", version="1.0.0", description="AI-powered breast cancer mammography analysis")
 
 # Add CORS middleware
 app.add_middleware(
@@ -26,9 +26,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Breast Cancer Classifier (will auto-train on first startup)
-logger.info("Initializing Breast Cancer Detection System...")
-breast_cancer_classifier = BreastCancerClassifier()
+# Initialize Breast Cancer Mammography Classifier (will auto-train on first startup)
+logger.info("Initializing Breast Cancer Mammography Detection System...")
+
+# Set up paths relative to this script's location
+import os
+script_dir = os.path.dirname(os.path.abspath(__file__))
+model_dir = os.path.join(script_dir, "models")
+data_dir = os.path.join(script_dir, "data")
+
+breast_cancer_classifier = BreastCancerClassifier(model_dir=model_dir, data_dir=data_dir)
 
 # Configuration
 UPLOAD_DIR = "uploads"
@@ -41,23 +48,24 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 @app.get("/")
 async def root():
     """Health check endpoint"""
-    return {"message": "Breast Cancer Detection API is running", "status": "healthy", "version": "1.0.0"}
+    return {"message": "Breast Cancer Mammography Detection API is running", "status": "healthy", "version": "1.0.0"}
 
 @app.post("/predict")
 async def predict_breast_cancer(image: UploadFile = File(...)):
     """
-    Predict breast cancer type (benign/malignant) from histopathological images
+    Predict breast cancer from mammography images
+    Analyzes mammographic findings for suspicious patterns
     """
     try:
         # Validate file
         if not allowed_file(image.filename):
-            raise HTTPException(status_code=400, detail="Invalid file type. Please upload PNG, JPG, or JPEG images.")
+            raise HTTPException(status_code=400, detail="Invalid file type. Please upload PNG, JPG, JPEG, TIFF, or DICOM images.")
         
         # Save uploaded file
         file_path = await save_upload_file(image, UPLOAD_DIR)
-        logger.info(f"Breast cancer tissue image uploaded: {file_path}")
+        logger.info(f"Mammography image uploaded: {file_path}")
         
-        # Make prediction using the breast cancer classifier
+        # Make prediction using the breast cancer mammography classifier
         prediction_result = breast_cancer_classifier.predict(file_path)
         
         # Clean up uploaded file
@@ -65,23 +73,23 @@ async def predict_breast_cancer(image: UploadFile = File(...)):
         
         return JSONResponse(content={
             "status": "success",
-            "cancer_type": "breast_cancer",
+            "analysis_type": "mammography",
             "prediction": prediction_result["prediction"],
             "confidence": prediction_result["confidence"],
             "probabilities": prediction_result["probabilities"],
             "risk_level": prediction_result["risk_level"],
             "interpretation": prediction_result["interpretation"],
-            "model_info": "Specialized Breast Cancer Detection Model"
+            "model_info": "Specialized Breast Cancer Mammography Detection Model"
         })
         
     except Exception as e:
-        logger.error(f"Breast cancer prediction error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Breast cancer prediction failed: {str(e)}")
+        logger.error(f"Mammography analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Mammography analysis failed: {str(e)}")
 
 @app.get("/model/info")
 async def get_breast_cancer_info_endpoint():
     """
-    Get information about the breast cancer detection system
+    Get information about the breast cancer mammography detection system
     """
     try:
         return JSONResponse(content={
@@ -96,14 +104,14 @@ async def get_breast_cancer_info_endpoint():
 @app.get("/model/status")
 async def get_model_status():
     """
-    Get the current breast cancer model status and performance metrics
+    Get the current breast cancer mammography model status and performance metrics
     """
     try:
         status = breast_cancer_classifier.get_status()
         return JSONResponse(content={
             "status": "success",
             "model_trained": status["is_trained"],
-            "cancer_type": status["cancer_type"],
+            "analysis_type": "mammography",
             "model_type": status["model_type"],
             "classes": status.get("classes", []),
             "training_accuracy": status.get("training_accuracy"),

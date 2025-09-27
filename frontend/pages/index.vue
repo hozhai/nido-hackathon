@@ -1,19 +1,19 @@
 <template>
   <div class="container mx-auto px-4 py-8">
-    <h1 class="text-4xl font-bold mb-8 text-center text-pink-700">🎗️ Breast Cancer Detection System</h1>
-    <p class="text-center text-gray-600 mb-8">AI-powered breast cancer tissue analysis from histopathological images</p>
+    <h1 class="text-4xl font-bold mb-8 text-center text-pink-700">🎗️ Breast Cancer Mammography Detection</h1>
+    <p class="text-center text-gray-600 mb-8">AI-powered breast cancer analysis from mammography images</p>
 
     <!-- System Information -->
     <div class="bg-gradient-to-r from-pink-50 to-rose-50 border-l-4 border-pink-500 shadow-lg rounded-lg p-6 mb-8">
-      <h2 class="text-xl font-semibold mb-4 text-pink-800">🔬 Specialized Breast Cancer Analysis</h2>
+      <h2 class="text-xl font-semibold mb-4 text-pink-800">🏥 Specialized Mammography Analysis</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
         <div>
-          <p><strong>Classification:</strong> Benign vs Malignant breast tissue</p>
-          <p><strong>Model:</strong> ResNet18 specialized for breast cancer</p>
+          <p><strong>Analysis:</strong> Suspicious vs Benign mammographic findings</p>
+          <p><strong>Model:</strong> ResNet18 specialized for mammography</p>
         </div>
         <div>
-          <p><strong>Training:</strong> Automatic on-startup training</p>
-          <p><strong>Accuracy:</strong> Optimized for histopathological analysis</p>
+          <p><strong>Training:</strong> Automatic training with mammography datasets</p>
+          <p><strong>Focus:</strong> Radiological pattern recognition</p>
         </div>
       </div>
     </div>
@@ -21,25 +21,25 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <!-- Upload Section -->
       <div class="bg-white shadow-lg rounded-lg p-6">
-        <h2 class="text-xl font-semibold mb-4 text-pink-700">📤 Upload Breast Tissue Image</h2>
+        <h2 class="text-xl font-semibold mb-4 text-pink-700">📤 Upload Mammography Image</h2>
         <div
           class="border-2 border-dashed border-pink-300 rounded-lg p-8 text-center hover:border-pink-400 transition-colors">
-          <input type="file" @change="handleFileUpload" accept="image/*" class="mb-4">
+          <input type="file" @change="handleFileUpload" accept="image/*,.dcm" class="mb-4">
           <div class="text-gray-600">
             <svg class="mx-auto h-12 w-12 text-pink-400 mb-4" stroke="currentColor" fill="none" viewBox="0 0 48 48">
               <path
                 d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
-            <p class="font-medium">Select a breast tissue histopathological image</p>
-            <p class="text-sm text-gray-500 mt-2">Supported formats: JPG, PNG, TIFF</p>
-            <p class="text-sm text-pink-600 mt-1">🎗️ Specialized for breast cancer detection</p>
+            <p class="font-medium">Select a mammography image</p>
+            <p class="text-sm text-gray-500 mt-2">Supported formats: JPG, PNG, TIFF, DICOM (.dcm)</p>
+            <p class="text-sm text-pink-600 mt-1">� Optimized for mammographic screening images</p>
           </div>
         </div>
 
-        <button @click="analyzeTissue" :disabled="!selectedFile || isLoading"
+        <button @click="analyzeMammogram" :disabled="!selectedFile || isLoading"
           class="w-full mt-4 bg-pink-500 hover:bg-pink-700 disabled:bg-gray-300 text-white font-bold py-3 px-4 rounded-lg transition-colors">
-          <span v-if="isLoading">🔬 Analyzing Breast Tissue...</span>
+          <span v-if="isLoading">🏥 Analyzing Mammogram...</span>
           <span v-else>🎗️ Analyze for Breast Cancer</span>
         </button>
 
@@ -177,7 +177,7 @@ const handleFileUpload = (event) => {
   prediction.value = null
 }
 
-const analyzeTissue = async () => {
+const analyzeMammogram = async () => {
   if (!selectedFile.value) return
 
   isLoading.value = true
@@ -198,13 +198,13 @@ const analyzeTissue = async () => {
 
     if (result.status === 'success') {
       prediction.value = result
-      console.log('Breast cancer analysis result:', result)
+      console.log('Mammography analysis result:', result)
     } else {
-      throw new Error('Breast cancer analysis failed')
+      throw new Error('Mammography analysis failed')
     }
   } catch (error) {
-    console.error('Error analyzing breast tissue:', error)
-    alert('Error analyzing breast tissue image. Please try again.')
+    console.error('Error analyzing mammography:', error)
+    alert('Error analyzing mammography image. Please try again.')
   } finally {
     isLoading.value = false
   }
