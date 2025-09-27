@@ -5,7 +5,7 @@ Final validation of the enhanced mammography model on the full validation set
 
 import logging
 from improved_mammography_model import ImprovedMammographyClassifier
-from retrain_improved_model import load_mias_dataset, create_balanced_dataloaders
+from retrain_improved_model import load_mammography_data, create_balanced_dataloaders
 import torch
 from sklearn.metrics import classification_report, confusion_matrix
 import numpy as np
@@ -16,7 +16,8 @@ def detailed_validation_analysis():
     
     # Load the dataset
     print("📊 Loading MIAS dataset...")
-    images, labels = load_mias_dataset()
+    data_dir = "/home/zhai/Documents/nido-hackathon/backend/data/mias"
+    images, labels = load_mammography_data(data_dir)
     
     # Create dataloaders
     print("🔄 Creating validation data...")
